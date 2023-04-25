@@ -61,11 +61,11 @@ messages = {}
 async def start_cmd(message: types.Message):
      try:
           await dp.bot.set_my_commands([
-          types.BotCommand("start", "Запустить бота (обновить список команд)"),
+          types.BotCommand("start", "Запустить бота"),
           types.BotCommand("help", "Помощь"),
           types.BotCommand("newtopic", "Сбросить диалог"),
           # types.BotCommand("add_personal", "Добавте вашему боту персону. До 150 символов"),
-          # types.BotCommand("reset_personal", "Сбросить персону"),
+          # types.BotCommand("Сбросить_персону", "Сбросить персону"),
           ]) 
           
 
@@ -73,15 +73,21 @@ async def start_cmd(message: types.Message):
                db.add_user(message.from_user.id) # команда добавления пользователя в базу (Добавляет user_id)
                db.set_nickname(message.from_user.id, message.from_user.username) # Добавляет username login
                db.set_personalities(message.from_user.id, "Вы ассистент, готовы помочь")
-               await bot.send_message(message.from_user.id, "Добро пожаловать! Я - ваш бот-ассистент, созданный на основе инновационных технологий искусственного интеллекта ChatGPT. 🤖Я могу предоставить вам различную информацию, помочь решать задачи и делать жизнь проще. 💡 Будет почетом мне помочь вам! 👍", reply_markup=nav.freeMenu)
+               await bot.send_message(message.from_user.id, "Добро пожаловать! Я - ваш бот-ассистент, созданный на основе инновационных технологий искусственного интеллекта ChatGPT. 🤖Я могу предоставить вам различную информацию, помочь решать задачи и делать жизнь проще. Также вы можете задать мне персону и я буду давать ответы в рамках своего персонажа💡. Будет почетом мне помочь вам! 👍", reply_markup=nav.freeMenu)
                await bot.send_message(message.from_user.id, "Уважаемый пользователь! Мы рады предоставить Вам нашу бесплатную версию сервиса, где вы сможете вводить тексты до 150 символов, а также получать ответы со сложностью, не превышающей 1500 токенов. 😊 Для получения большего функционала мы предлагаем ежемесячную подписку, которая позволит Вам в полной мере воспользоваться всеми доступными возможностями нашего сервиса. 💡 Спасибо за Ваш выбор! 👍", reply_markup=nav.freeMenu)
           else:
                
-               await bot.send_message(message.from_user.id, "Приветствую бота 🤖, работающего на инновационных технологиях!\r\n\r\nДоброго времени суток! Мы рады сообщить, что Ваш 🤖 бот успешно активирован.", reply_markup=nav.freeMenu)
+               await bot.send_message(message.from_user.id, "Приветствую🤖\r\n\r\nМы рады сообщить, что Ваш 🤖 бот успешно активирован.", reply_markup=nav.freeMenu)
                username = message.from_user.username
                messages[username] = []
      except Exception as e:
           logging.error(f'Error in start_cmd: {e}')
+
+@dp.message_handler(commands=['help'])
+async def help_cmd(message: types.Message) -> None:
+          await bot.send_message(message.from_user.id, HELP_DESCRIPTION)
+
+
 
 
 @dp.message_handler(commands=['newtopic'])
@@ -109,7 +115,7 @@ class FSMstates(StatesGroup):
 @dp.message_handler(commands=['Добавить_персону'], state=None)
 async def add_persona(message: types.Message):
      if db.get_sub_status(message.from_user.id) == False: # тоесть статус free 
-          await bot.send_message(message.from_user.id, "Настройки персоны доступны только подписщикам. \n(написать характер кнопки персона)", reply_markup=nav.freeMenu)
+          await bot.send_message(message.from_user.id,"Для изменения параметров персонажа необходимо иметь подписку. \r\nНастройка персонажа позволяет присвоить Вашему боту-ассистенту роль пирата, космодесантника или юриста, все ограничивается в вашу фантазию и 150 символов вводимого текста для персоны.", reply_markup=nav.freeMenu)
           return
      else:
           await FSMstates.personalities.set()
@@ -164,9 +170,9 @@ async def echo_msg(message: types.Message):
           if message.text == 'Персона':
                await bot.send_chat_action(message.chat.id, ChatActions.TYPING)
                if db.get_sub_status(message.from_user.id) == False:
-                    await bot.send_message(message.from_user.id, "Настройки персоны доступны только подписщикам. \n(написать характер кнопки персона)", reply_markup=nav.freeMenu)
+                    await bot.send_message(message.from_user.id, "Для изменения параметров персонажа необходимо иметь подписку. \r\nНастройка персонажа позволяет присвоить Вашему боту-ассистенту роль пирата, космодесантника или юриста, все ограничивается в вашу фантазию и 150 символов вводимого текста для персоны.", reply_markup=nav.freeMenu)
                else:
-                    await bot.send_message(message.from_user.id, "Персона, здесь вы можете задать персону для вашего бота", reply_markup=nav.PersonalitiesMenu)
+                    await bot.send_message(message.from_user.id, "Вы можете использовать функцию \"Персона\" для задания определенного имени, роли или характера вашему боту-ассистенту. Это позволит наделить вашего бота более индивидуальным и уникальным стилем и поведением, что поможет улучшить взаимодействие с пользователями.", reply_markup=nav.PersonalitiesMenu)
                return
 
           if message.text == 'Профиль': # реакция на команду профиль
@@ -210,7 +216,7 @@ async def echo_msg(message: types.Message):
                     if len(message.text) >= 150: 
                          await bot.send_message(
                          chat_id=message.from_user.id,
-                         text=f'"К сожалению, Вы ввели слишком много символов (более 150). Следующее ограничение можно снять, используя премиум подписку. \r\n\r\nСпасибо, что выбрали наш сервис для оптимизации процессов. 🔍"',
+                         text=f'"К сожалению, Вы ввели слишком много символов (более 150). Следующее ограничение можно снять, используя подписку. \r\n\r\nСпасибо, что выбрали наш сервис для оптимизации процессов. 🔍"',
                          reply_markup = nav.sub_inline_markup
                          )
                          logging.info(f'{userid}: {user_message}')
@@ -297,7 +303,7 @@ async def echo_msg(message: types.Message):
 @dp.callback_query_handler(text="submonth") # обработчик кторый выводит информацию о подписке
 async def submonth(call: types.CallbackQuery):
      await bot.delete_message(call.from_user.id, call.message.message_id)
-     await bot.send_invoice(chat_id=call.from_user.id, title="Премиум подписка ⚜️", description=description, payload="month_sub", provider_token=YOOTOKEN, currency="RUB", start_parameter="test", prices=[{"label": "Руб", "amount": 15000}])
+     await bot.send_invoice(chat_id=call.from_user.id, title="Подписка ⚜️", description=description, payload="month_sub", provider_token=YOOTOKEN, currency="RUB", start_parameter="test", prices=[{"label": "Руб", "amount": 15000}])
 
 @dp.pre_checkout_query_handler() #проверяет что товар есть на складе и возвращает ок
 async def process_pre_checkout_query(pre_checkout_query: types.PreCheckoutQuery):
@@ -309,7 +315,7 @@ async def process_pay(message: types.Message):
             time_sub = int(time.time()) + days_to_seconds(30)
             db.set_time_sub(message.from_user.id, time_sub)
             db.set_signup(message.from_user.id, "sub")
-            await bot.send_message(message.from_user.id, "Вам выдана премиум⚜️ подписка", reply_markup=nav.premiumMenu)
+            await bot.send_message(message.from_user.id, "Вам выдана ⚜️ подписка", reply_markup=nav.premiumMenu)
 
 
 if __name__ == '__main__':
