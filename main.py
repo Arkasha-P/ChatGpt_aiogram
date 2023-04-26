@@ -30,7 +30,7 @@ storage = MemoryStorage()
 
 bot = Bot(token=bot_token)
 dp = Dispatcher(bot, storage=storage)
-db = Database('database.db')
+db = Database(DATABASE)
 
 MAX_TOKEN = 0
 
