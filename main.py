@@ -22,9 +22,9 @@ bot_token = TELEGRAM_BOT_TOKEN
 api_key = OPENAI_API_KEY
 
 log = "data\log"
-#logging.basicConfig(filename=log, filemode='a', encoding='utf-8', level=logging.INFO)
+logging.basicConfig(filename=log, filemode='a', encoding='utf-8', level=logging.INFO)
 
-logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.INFO)
 
 storage = MemoryStorage()
 
