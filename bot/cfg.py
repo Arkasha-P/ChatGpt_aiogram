@@ -3,6 +3,7 @@ TELEGRAM_BOT_TOKEN="6216264719:AAHzrRhUtFWHpN5SrEmRy12nCcNikhOZqCg"
 
 YOOTOKEN = "381764678:TEST:55600"
 
+
 DATABASE = '/root/chatgpt_aiogram_bot/database.db'
 
 

@@ -26,6 +26,7 @@ logging.basicConfig(filename=log, filemode='a', encoding='utf-8', level=logging.
 
 #logging.basicConfig(level=logging.INFO)
 
+
 storage = MemoryStorage()
 
 bot = Bot(token=bot_token)
