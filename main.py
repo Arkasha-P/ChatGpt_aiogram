@@ -21,11 +21,10 @@ import datetime
 bot_token = TELEGRAM_BOT_TOKEN
 api_key = OPENAI_API_KEY
 
-log = "data\log"
-logging.basicConfig(filename=log, filemode='a', encoding='utf-8', level=logging.INFO)
+log = "data/log"
+logging.basicConfig(filename=log, filemode='a', level=logging.INFO)
 
 #logging.basicConfig(level=logging.INFO)
-
 
 storage = MemoryStorage()
 
@@ -232,7 +231,7 @@ async def echo_msg(message: types.Message):
           messages[userid].append({"role": "system", "content": PERSONALITIES})
           messages[userid].append({"role": "user",
                                  "content": f"chat: {message.chat} Сейчас {time.strftime('%d/%m/%Y %H:%M:%S')} user: {message.from_user.first_name} message: {message.text}"})
-          logging.info(f'{userid}: {user_message}')
+          
 
         # Check if the message is a reply to the bot's message or a new message
           should_respond = not message.reply_to_message or message.reply_to_message.from_user.id == bot.id
