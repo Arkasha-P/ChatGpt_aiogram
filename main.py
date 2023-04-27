@@ -17,7 +17,7 @@ from bot.db import Database
 
 import datetime
 
-# Set up the bot and OpenAI API credentials
+# Set up the bot and OpenAI API credentials 
 bot_token = TELEGRAM_BOT_TOKEN
 api_key = OPENAI_API_KEY
 
