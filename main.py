@@ -1,5 +1,7 @@
 import logging
 import time
+from re import search
+
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types.message import ContentType
 from aiogram.types import ChatActions
@@ -13,18 +15,20 @@ import openai
 
 import bot.markups as nav
 from bot.cfg import *
+from bot.tokens import *
 from bot.db import Database
 
 import datetime
+
+
 
 # Set up the bot and OpenAI API credentials 
 bot_token = TELEGRAM_BOT_TOKEN
 api_key = OPENAI_API_KEY
 
-log = "data/log"
-logging.basicConfig(filename=log, filemode='a', level=logging.INFO)
+#logging.basicConfig(filename=LOGFILE, filemode='a', level=logging.INFO)
 
-#logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 storage = MemoryStorage()
 
@@ -33,6 +37,8 @@ dp = Dispatcher(bot, storage=storage)
 db = Database(DATABASE)
 
 MAX_TOKEN = 0
+
+messages = {}
 
 openai.api_key = api_key
 
@@ -51,12 +57,6 @@ def time_sub_day(get_time):
           dt = dt.replace("day", "день")
      return dt
 
-
-
-messages = {}
-
-
-
 @dp.message_handler(commands=['start'])
 async def start_cmd(message: types.Message):
      try:
@@ -69,8 +69,8 @@ async def start_cmd(message: types.Message):
           ]) 
           
 
-          if(not db.user_exists(message.from_user.id)): # проверка на наличия пользователя в базе  если пользователя нет в базе то он автоматически добавляется
-               db.add_user(message.from_user.id) # команда добавления пользователя в базу (Добавляет user_id)
+          if(not db.user_exists(message.from_user.id)):     # проверка на наличия пользователя в базе  если пользователя нет в базе то он автоматически добавляется
+               db.add_user(message.from_user.id)            # команда добавления пользователя в базу (Добавляет user_id)
                db.set_nickname(message.from_user.id, message.from_user.username) # Добавляет username login
                db.set_personalities(message.from_user.id, "Вы ассистент, готовы помочь")
                await bot.send_message(message.from_user.id, "Добро пожаловать! Я - ваш бот-ассистент, созданный на основе инновационных технологий искусственного интеллекта ChatGPT. 🤖Я могу предоставить вам различную информацию, помочь решать задачи и делать жизнь проще. Также вы можете задать мне персону и я буду давать ответы в рамках своего персонажа💡. Будет почетом мне помочь вам! 👍", reply_markup=nav.freeMenu)
@@ -145,84 +145,97 @@ async def process_name(message: types.Message, state: FSMContext):
 
 
 @dp.message_handler()
-async def echo_msg(message: types.Message):
+async def all_msg(message: types.Message):
      
      try:
+          
           user_message = message.text
           userid = message.from_user.username
+          user_sub = time_sub_day(db.get_time_sub(message.from_user.id))
+
+          logging.info(f'156 \n{userid}\n{message.chat.id}\n{message.chat.type}\n{message.from_user.id}')
 
           if message.chat.type == 'private': # проверяет является чат в личным а не публичным (например общение через групповой чат)
-               user_sub = time_sub_day(db.get_time_sub(message.from_user.id))
 
-          # при каждом вводимом сообщении проверяет пользователя на наличие подписки через функцию таймера он проверяет реальное время
-          if db.get_sub_status(message.from_user.id) == True:  
-               db.set_signup(message.from_user.id, "sub")
-          elif db.get_sub_status(message.from_user.id) == False:
-               db.set_signup(message.from_user.id, "free")
-               db.set_time_sub(message.from_user.id, 0)
-               db.set_personalities(message.from_user.id, "Вы ассистент, готовы помочь")
+               # при каждом вводимом сообщении проверяет пользователя на наличие подписки через функцию таймера он проверяет реальное время
+               if db.get_sub_status(message.from_user.id) == True:  
+                    db.set_signup(message.from_user.id, "sub")
+               elif db.get_sub_status(message.from_user.id) == False:
+                    db.set_signup(message.from_user.id, "free")
+                    db.set_time_sub(message.from_user.id, 0)
+                    db.set_personalities(message.from_user.id, "Вы ассистент, готовы помочь")
 
-          if message.text == 'Настройки':
-               await bot.send_chat_action(message.chat.id, ChatActions.TYPING)
-               await bot.send_message(message.from_user.id, "Настройки",reply_markup=nav.settingMenu)
-               return
-
-          if message.text == 'Персона':
-               await bot.send_chat_action(message.chat.id, ChatActions.TYPING)
-               if db.get_sub_status(message.from_user.id) == False:
-                    await bot.send_message(message.from_user.id, "Для изменения параметров персонажа необходимо иметь подписку. \r\nНастройка персонажа позволяет присвоить Вашему боту-ассистенту роль пирата, космодесантника или юриста, все ограничивается в вашу фантазию и 150 символов вводимого текста для персоны.", reply_markup=nav.freeMenu)
-               else:
-                    await bot.send_message(message.from_user.id, "Вы можете использовать функцию \"Персона\" для задания определенного имени, роли или характера вашему боту-ассистенту. Это позволит наделить вашего бота более индивидуальным и уникальным стилем и поведением, что поможет улучшить взаимодействие с пользователями.", reply_markup=nav.PersonalitiesMenu)
-               return
-
-          if message.text == 'Профиль': # реакция на команду профиль
-
-               await bot.send_chat_action(message.chat.id, ChatActions.TYPING)
-               user_nickname = "Ваш ник: " + db.get_nickname(message.from_user.id)
-               
-               if user_sub == False:
-                    user_sub = "Free"
-               user_sub = "\nПодписка: " + user_sub
-
-               await bot.send_message(message.from_user.id, user_nickname + user_sub)
-               PERSONALITIES = db.get_personalities(message.from_user.id)
-               
-               
-               if db.get_sub_status(message.from_user.id) == True:
-                    await bot.send_message(message.from_user.id, "Персона вашего бота:\n\n\""+PERSONALITIES+"\"",reply_markup=nav.premiumMenu)
-               else:
-                    await bot.send_message(message.from_user.id, "Персона вашего бота:\n\n\""+PERSONALITIES+"\"",reply_markup=nav.freeMenu)
-               return
-
-          elif message.text == 'Подписка':# реакция на команду подписка
-               if db.get_signup(message.from_user.id) == "sub":
-                    await bot.send_message(message.from_user.id, "У вас уже есть 🌟 премиум подписка", reply_markup=nav.premiumMenu)
-                    logging.info(f'{userid}: {user_message}')
-                    return
-               else:
-                    await bot.send_message(message.from_user.id, description, reply_markup=nav.sub_inline_markup)
-                    logging.info(f'{userid}: {user_message}')
+               if message.text == 'Настройки':
+                    await bot.send_chat_action(message.chat.id, ChatActions.TYPING)
+                    await bot.send_message(message.from_user.id, "Настройки",reply_markup=nav.settingMenu)
                     return
 
-          else: # все остальные команды 
-               await bot.send_chat_action(message.chat.id, ChatActions.TYPING)
-               if db.get_signup(message.from_user.id) == "sub": # здесь все остальные команды при подписке
-                    #await bot.send_message(message.from_user.id, "Что? 110", reply_markup=nav.premiumMenu) # если при нажатии на старт пользователь уже в базе то выдаётся сообщение 
-                    MAX_TOKEN = MAX_TOKEN_SUB
-                    logging.info(f'{userid}: {user_message}')
+               if message.text == 'Персона':
+                    await bot.send_chat_action(message.chat.id, ChatActions.TYPING)
+                    if db.get_sub_status(message.from_user.id) == False:
+                         await bot.send_message(message.from_user.id, "Для изменения параметров персонажа необходимо иметь подписку. \r\nНастройка персонажа позволяет присвоить Вашему боту-ассистенту роль пирата, космодесантника или юриста, все ограничивается в вашу фантазию и 150 символов вводимого текста для персоны.", reply_markup=nav.freeMenu)
+                    else:
+                         await bot.send_message(message.from_user.id, "Вы можете использовать функцию \"Персона\" для задания определенного имени, роли или характера вашему боту-ассистенту. Это позволит наделить вашего бота более индивидуальным и уникальным стилем и поведением, что поможет улучшить взаимодействие с пользователями.", reply_markup=nav.PersonalitiesMenu)
+                    return
+
+               if message.text == 'Профиль': # реакция на команду профиль
+
+                    await bot.send_chat_action(message.chat.id, ChatActions.TYPING)
+                    user_nickname = "Ваш ник: " + db.get_nickname(message.from_user.id)
                     
-               else: # здесь все остальные команды при отсутствии подписки
-                    MAX_TOKEN = MAX_TOKEN_FREE
-                    if len(message.text) >= 150: 
-                         await bot.send_message(
-                         chat_id=message.from_user.id,
-                         text=f'"К сожалению, Вы ввели слишком много символов (более 150). Следующее ограничение можно снять, используя подписку. \r\n\r\nСпасибо, что выбрали наш сервис для оптимизации процессов. 🔍"',
-                         reply_markup = nav.sub_inline_markup
-                         )
+                    if user_sub == False:
+                         user_sub = "Free"
+                    user_sub = "\nПодписка: " + user_sub
+
+                    await bot.send_message(message.from_user.id, user_nickname + user_sub)
+                    PERSONALITIES = db.get_personalities(message.from_user.id)
+                    
+                    
+                    if db.get_sub_status(message.from_user.id) == True:
+                         await bot.send_message(message.from_user.id, "Персона вашего бота:\n\n\""+PERSONALITIES+"\"",reply_markup=nav.premiumMenu)
+                    else:
+                         await bot.send_message(message.from_user.id, "Персона вашего бота:\n\n\""+PERSONALITIES+"\"",reply_markup=nav.freeMenu)
+                    return
+
+               elif message.text == 'Подписка':# реакция на команду подписка
+                    if db.get_signup(message.from_user.id) == "sub":
+                         await bot.send_message(message.from_user.id, "У вас уже есть 🌟 премиум подписка", reply_markup=nav.premiumMenu)
+                         logging.info(f'{userid}: {user_message}')
+                         return
+                    else:
+                         await bot.send_message(message.from_user.id, description, reply_markup=nav.sub_inline_markup)
                          logging.info(f'{userid}: {user_message}')
                          return
 
-     # Add the user's message to their message history
+               else: # все остальные команды 
+                    await bot.send_chat_action(message.chat.id, ChatActions.TYPING)
+                    if db.get_signup(message.from_user.id) == "sub": # здесь все остальные команды при подписке
+                         #await bot.send_message(message.from_user.id, "Что? 110", reply_markup=nav.premiumMenu) # если при нажатии на старт пользователь уже в базе то выдаётся сообщение 
+                         MAX_TOKEN = MAX_TOKEN_SUB
+                         logging.info(f'{userid}: {user_message}')
+                         logging.info(f'216')
+                         
+                    else: # здесь все остальные команды при отсутствии подписки
+                         MAX_TOKEN = MAX_TOKEN_FREE
+                         if len(message.text) >= 150: 
+                              await bot.send_message(
+                              chat_id=message.from_user.id,
+                              text=f'"К сожалению, Вы ввели слишком много символов (более 150). Следующее ограничение можно снять, используя подписку. \r\n\r\nСпасибо, что выбрали наш сервис для оптимизации процессов. 🔍"',
+                              reply_markup = nav.sub_inline_markup
+                              )
+                              logging.info(f'{userid}: {user_message}')
+                              return
+
+          elif message.chat.type == 'supergroup' or message.chat.type == 'group': # Проверяет приехало сообщение из группы 
+               return
+               logging.info(f'230 \n{userid}\n{message.chat.id}\n{message.text}')
+               if search('@TestChat2313123_bot', message.text) or search('@ChatGPT_power_bot', message.text):
+                    logging.info(f'232 \n{userid}\n{message.chat.id}\n{message.text}')
+                    await bot.send_chat_action(chat_id=message.chat.id, action="typing")
+                    # await bot.send_message(message.chat.id, "НАйС")
+                    await message.reply(f'Привет в групповом чате', parse_mode='Markdown')
+                              
+          # Add the user's message to their message history
 
           PERSONALITIES = db.get_personalities(message.from_user.id)
           if userid not in messages:
@@ -230,14 +243,14 @@ async def echo_msg(message: types.Message):
           messages[userid].append({"role": "user", "content": user_message})
           messages[userid].append({"role": "system", "content": PERSONALITIES})
           messages[userid].append({"role": "user",
-                                 "content": f"chat: {message.chat} Сейчас {time.strftime('%d/%m/%Y %H:%M:%S')} user: {message.from_user.first_name} message: {message.text}"})
-          
+                              "content": f"chat: {message.chat} Сейчас {time.strftime('%d/%m/%Y %H:%M:%S')} user: {message.from_user.first_name} message: {message.text}"})
 
-        # Check if the message is a reply to the bot's message or a new message
+
+     # Check if the message is a reply to the bot's message or a new message
           should_respond = not message.reply_to_message or message.reply_to_message.from_user.id == bot.id
 
           if should_respond:
-            # Отправьте сообщение "обработка", чтобы указать, что бот работает
+          # Отправьте сообщение "обработка", чтобы указать, что бот работает
                processing_message = await message.reply(
                'I need to think 🤔 \n(If the bot does not respond, write /newtopic) * * * \n\nМне нужно подумать 🤔 \n(Если бот не отвечает, напишите /newtopic) * * *',
                parse_mode='Markdown')
@@ -274,7 +287,7 @@ async def echo_msg(message: types.Message):
                     await message.reply(chatgpt_response['content'])
                #await bot.send_message(message.from_user.id, "Это 184 строка")
                else:
-                    random_number = 20                   #random.randint(5, 25)
+                    random_number = 25                   #random.randint(5, 25)
                     text = chatgpt_response['content']
                     msg = await bot.send_message(message.chat.id, '_')
                     tbp = text[:random_number]
@@ -289,6 +302,7 @@ async def echo_msg(message: types.Message):
 
 
 
+
      except Exception as ex:
         # Если возникает ошибка, попробуйте начать новую тему
           if ex == "context_length_exceeded":
@@ -296,7 +310,7 @@ async def echo_msg(message: types.Message):
                 'The bot ran out of memory, re-creating the dialogue * * * \n\nУ бота закончилась память, пересоздаю диалог * * *',
                 parse_mode='Markdown')
             await new_topic_cmd(message)
-            await echo_msg(message)
+            await all_msg(message)
 
 
 

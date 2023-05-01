@@ -1,0 +1,9 @@
+OPENAI_API_KEY="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"
+
+# реквизиты тестового бота
+TELEGRAM_BOT_TOKEN="6025933739:AAF-Ei_M9P3DPb--IYLqhb4rcpiNboNbJ1E"
+
+YOOTOKEN = "381764678:TEST:55236"
+
+DATABASE = 'database.db'
+LOGFILE = "data/log"
