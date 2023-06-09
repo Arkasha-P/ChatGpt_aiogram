@@ -25,7 +25,7 @@ PersonalitiesMenu = ReplyKeyboardMarkup(resize_keyboard= True).add(btnPersonalit
 
 #=============== subbutton ===================
 sub_inline_markup = InlineKeyboardMarkup(row_width=1)
-btnSubMonth = InlineKeyboardButton(text="Месяц - 150 рублей", callback_data="submonth")
+btnSubMonth = InlineKeyboardButton(text="Месяц - 300 рублей", callback_data="submonth")
 sub_inline_markup.insert(btnSubMonth) # кнопка под сообщениями купить 
 
 

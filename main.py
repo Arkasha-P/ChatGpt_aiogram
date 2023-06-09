@@ -1,6 +1,7 @@
 import logging
 import time
 from re import search
+from venv import logger
 
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types.message import ContentType
@@ -26,17 +27,15 @@ import datetime
 bot_token = TELEGRAM_BOT_TOKEN
 api_key = OPENAI_API_KEY
 
-#logging.basicConfig(filename=LOGFILE, filemode='a', level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(filename=LOGFILE, filemode='a', level=logging.INFO)
 
 storage = MemoryStorage()
 
 bot = Bot(token=bot_token)
 dp = Dispatcher(bot, storage=storage)
 db = Database(DATABASE)
-
-MAX_TOKEN = 0
 
 messages = {}
 
@@ -63,7 +62,7 @@ async def start_cmd(message: types.Message):
           await dp.bot.set_my_commands([
           types.BotCommand("start", "Запустить бота"),
           types.BotCommand("help", "Помощь"),
-          types.BotCommand("newtopic", "Сбросить диалог"),
+          types.BotCommand("newtopic", "Сбросить диалог (если бот завис)"),
           # types.BotCommand("add_personal", "Добавте вашему боту персону. До 150 символов"),
           # types.BotCommand("Сбросить_персону", "Сбросить персону"),
           ]) 
@@ -88,25 +87,39 @@ async def help_cmd(message: types.Message) -> None:
           await bot.send_message(message.from_user.id, HELP_DESCRIPTION)
 
 
-
-
 @dp.message_handler(commands=['newtopic'])
 async def new_topic_cmd(message: types.Message):
     try:
-        userid = message.from_user.id
-        messages[str(userid)] = []
-        await message.reply('Starting a new topic! * * * \n\nНачинаем новую тему! * * *', parse_mode='Markdown')
+          
+          userid = message.from_user.id
+          PERSONALITIES = db.get_personalities(message.from_user.id)
+          messages[userid] = [{"role": "system", "content": PERSONALITIES}]
+          logging.info(f'NEWTOPIC - MESSAGE[USERID] - \n{messages[userid]}') 
+          await message.reply('Starting a new topic! * * * \n\nНачинаем новую тему! * * *', parse_mode='Markdown')
     except Exception as e:
         logging.error(f'Error in new_topic_cmd: {e}')
 
+#==========================new_topic_silent
+async def new_topic_silent(message: types.Message):
+    try:
+          
+          user_message = message.text
+          userid = message.from_user.id
+          messages[userid] = []
+          logging.info(f'NEWTOPIC - MESSAGE[USERID] - \n{messages[userid]}')
+          await all_msg(message)
+    except Exception as e:
+        logging.error(f'Error in new_topic_silent: {e}')
+
+
 
 @dp.message_handler(commands=['Сбросить_персону'])
-async def new_topic_cmd(message: types.Message):
+async def new_personalities_cmd(message: types.Message):
     try:
         db.set_personalities(message.from_user.id, "Вы ассистент, готовы помочь")
         await message.reply('Персона сброшена', parse_mode='Markdown',reply_markup=nav.premiumMenu)
     except Exception as e:
-        logging.error(f'Error in new_topic_cmd: {e}')
+        logging.error(f'Error in new_personalities_cmd: {e}')
 
 # =========================== add persona
 class FSMstates(StatesGroup):
@@ -148,12 +161,13 @@ async def process_name(message: types.Message, state: FSMContext):
 async def all_msg(message: types.Message):
      
      try:
-          
+     
           user_message = message.text
-          userid = message.from_user.username
+          # userid = message.from_user.username
+          userid = message.from_user.id
           user_sub = time_sub_day(db.get_time_sub(message.from_user.id))
 
-          logging.info(f'156 \n{userid}\n{message.chat.id}\n{message.chat.type}\n{message.from_user.id}')
+          # logging.info(f'156 \n{userid}\n{message.chat.id}\n{message.chat.type}\n{message.from_user.id}')
 
           if message.chat.type == 'private': # проверяет является чат в личным а не публичным (например общение через групповой чат)
 
@@ -200,11 +214,11 @@ async def all_msg(message: types.Message):
                elif message.text == 'Подписка':# реакция на команду подписка
                     if db.get_signup(message.from_user.id) == "sub":
                          await bot.send_message(message.from_user.id, "У вас уже есть 🌟 премиум подписка", reply_markup=nav.premiumMenu)
-                         logging.info(f'{userid}: {user_message}')
+                         # logging.info(f'{userid}: {user_message}')
                          return
                     else:
                          await bot.send_message(message.from_user.id, description, reply_markup=nav.sub_inline_markup)
-                         logging.info(f'{userid}: {user_message}')
+                         # logging.info(f'{userid}: {user_message}')
                          return
 
                else: # все остальные команды 
@@ -236,29 +250,30 @@ async def all_msg(message: types.Message):
                     await message.reply(f'Привет в групповом чате', parse_mode='Markdown')
                               
           # Add the user's message to their message history
-
+          logging.info(f'239')
           PERSONALITIES = db.get_personalities(message.from_user.id)
           if userid not in messages:
                messages[userid] = []
           messages[userid].append({"role": "user", "content": user_message})
           messages[userid].append({"role": "system", "content": PERSONALITIES})
-          messages[userid].append({"role": "user",
-                              "content": f"chat: {message.chat} Сейчас {time.strftime('%d/%m/%Y %H:%M:%S')} user: {message.from_user.first_name} message: {message.text}"})
+         # messages[userid].append({"role": "user", "content": f"chat: {message.chat} Сейчас {time.strftime('%d/%m/%Y %H:%M:%S')} user: {message.from_user.first_name} message: {message.text}"})
 
-
-     # Check if the message is a reply to the bot's message or a new message
+          logging.info(f'248')
+          # Check if the message is a reply to the bot's message or a new message
           should_respond = not message.reply_to_message or message.reply_to_message.from_user.id == bot.id
 
+          logging.info(f'252')
           if should_respond:
           # Отправьте сообщение "обработка", чтобы указать, что бот работает
-               processing_message = await message.reply(
-               'I need to think 🤔 \n(If the bot does not respond, write /newtopic) * * * \n\nМне нужно подумать 🤔 \n(Если бот не отвечает, напишите /newtopic) * * *',
-               parse_mode='Markdown')
-
+               # processing_message = await message.reply(
+               # 'I need to think 🤔 \n(If the bot does not respond, write /newtopic) * * * \n\nМне нужно подумать 🤔 \n(Если бот не отвечает, напишите /newtopic) * * *',
+               # parse_mode='Markdown')
+               
                # Send a "typing" action to indicate that the bot is typing a response
                await bot.send_chat_action(chat_id=message.chat.id, action="typing")
 
                # Generate a response using OpenAI's Chat API
+               logging.info(f'258')
                completion = await openai.ChatCompletion.acreate(
                     model="gpt-3.5-turbo",
                     messages=messages[userid],
@@ -266,58 +281,78 @@ async def all_msg(message: types.Message):
                     temperature=1,
                     frequency_penalty=0,
                     presence_penalty=0,
-                    user=userid
+                    user=str(userid)
                )
-               chatgpt_response = completion.choices[0]['message']
+               # logging.info(f'277 \n\n {completion}')
 
-               #await bot.send_message(message.from_user.id, "Это 175 строка")
+               logging.info(f'275 - message_userid:\n {messages[userid]}')
+               chatgpt_response = completion.choices[0]['message']
+               logging.info(f'273')
+               
+               logging.info(f'{message.from_user.username}\{message.from_user.id}:\n{message.text}')
 
                await bot.send_chat_action(message.chat.id, ChatActions.TYPING)
-               # Add the bot's response to the user's message history
+               # Добавить ответ бота в историю сообщений пользователя
                messages[userid].append({"role": "assistant", "content": chatgpt_response['content']})
+               
                logging.info(f'ChatGPT response: {chatgpt_response["content"]}')
-               #await bot.send_message(message.from_user.id, "Это 179 строка")
+
+               
+               
                await bot.send_chat_action(message.chat.id, ChatActions.TYPING)
                # Отправить ответ бота пользователю
-
+               logging.info(f'283')
                # Delete the "processing" message
-               await bot.delete_message(chat_id=processing_message.chat.id, message_id=processing_message.message_id)
+               # await bot.delete_message(chat_id=processing_message.chat.id, message_id=processing_message.message_id)
+
+               logging.info(f'287')
 
                if (ALIVE_TEXT == False):
                     await message.reply(chatgpt_response['content'])
                #await bot.send_message(message.from_user.id, "Это 184 строка")
                else:
-                    random_number = 25                   #random.randint(5, 25)
+                    random_number = 25 + 15                 #random.randint(5, 25)
                     text = chatgpt_response['content']
                     msg = await bot.send_message(message.chat.id, '_')
                     tbp = text[:random_number]
                     for x in range(0, len(text), random_number):
                          await bot.edit_message_text(chat_id=message.chat.id, message_id=msg.message_id, text=f'{tbp}_')
-                         #random_number = random.randint(5, 25)
                          tbp = text[0:x+random_number]
                          time.sleep(RESPONSE_TIME)
                          await bot.edit_message_text(chat_id=message.chat.id, message_id=msg.message_id, text=tbp)
-               await bot.edit_message_text(chat_id=message.chat.id, message_id=msg.message_id, text=text)
+               # await bot.edit_message_text(chat_id=message.chat.id, message_id=msg.message_id, text=text)
                     
+          logging.info(f'305')
 
 
 
+     except openai.error.InvalidRequestError as e:
+     #Handle invalid request error, e.g. validate parameters or log
+          logging.info(f"OpenAI API request was invalid: {e}")
+          # await bot.delete_message(chat_id=processing_message.chat.id, message_id=processing_message.message_id)
+          await new_topic_silent(message)
 
-     except Exception as ex:
-        # Если возникает ошибка, попробуйте начать новую тему
-          if ex == "context_length_exceeded":
-            await message.reply(
-                'The bot ran out of memory, re-creating the dialogue * * * \n\nУ бота закончилась память, пересоздаю диалог * * *',
-                parse_mode='Markdown')
-            await new_topic_cmd(message)
-            await all_msg(message)
+          # старый метод сброса диалога при ошибке
+          # await bot.delete_message(chat_id=processing_message.chat.id, message_id=processing_message.message_id)
+          # await bot.send_message(message.from_user.id, "\r⚠Переполнен буфер\n\n\r✅Буфер очищен")
+          # await new_topic_cmd(message)
+
+
+
 
 
 
 @dp.callback_query_handler(text="submonth") # обработчик кторый выводит информацию о подписке
 async def submonth(call: types.CallbackQuery):
      await bot.delete_message(call.from_user.id, call.message.message_id)
-     await bot.send_invoice(chat_id=call.from_user.id, title="Подписка ⚜️", description=description, payload="month_sub", provider_token=YOOTOKEN, currency="RUB", start_parameter="test", prices=[{"label": "Руб", "amount": 15000}])
+     await bot.send_invoice(chat_id=call.from_user.id, 
+                            title="Подписка ⚜️", 
+                            description=description, 
+                            payload="month_sub", 
+                            provider_token=YOOTOKEN,
+                            start_parameter="one-month-subscription", 
+                            currency="RUB", 
+                            prices=[{"label": "Руб", "amount": 30000}])
 
 @dp.pre_checkout_query_handler() #проверяет что товар есть на складе и возвращает ок
 async def process_pre_checkout_query(pre_checkout_query: types.PreCheckoutQuery):
@@ -326,9 +361,10 @@ async def process_pre_checkout_query(pre_checkout_query: types.PreCheckoutQuery)
 @dp.message_handler(content_types = ContentType.SUCCESSFUL_PAYMENT) #проверяет что оплата прошла вслучае если всё хорошо то информирует пользователя что оплата прошла и присваевает ему время и статус
 async def process_pay(message: types.Message):
      if message.successful_payment.invoice_payload == "month_sub":
+            logger.info(f'SUCCESSFUL_PAYMENT:\n{message.from_user.id}')
             time_sub = int(time.time()) + days_to_seconds(30)
-            db.set_time_sub(message.from_user.id, time_sub)
-            db.set_signup(message.from_user.id, "sub")
+            #db.set_time_sub(message.from_user.id, time_sub)
+            #db.set_signup(message.from_user.id, "sub")
             await bot.send_message(message.from_user.id, "Вам выдана ⚜️ подписка", reply_markup=nav.premiumMenu)
 
 
